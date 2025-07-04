@@ -1,5 +1,3 @@
-# GridcelllLocation_Settransformer
-
 Sox_Settransformer
 무선 신호 기반 위치 추정(SetTransformer 기반) 대용량 실험/재현성/확장성 중심 파이프라인
 
@@ -503,6 +501,8 @@ input_dim은 인코더에서 자동 계산되므로 config에서 중복 입력�
 실험 reproducibility를 위해 seed, 체크포인트, 로그를 철저히 관리하세요.
 set_transformer
 Official PyTorch implementation of the paper Set Transformer: A Framework for Attention-based Permutation-Invariant Neural Networks .
+
+
 
 
 ----------------------------------------------------------

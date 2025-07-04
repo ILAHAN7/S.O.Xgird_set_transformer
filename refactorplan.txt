@@ -1,0 +1,473 @@
+# 무선 위치 추정 프로젝트 리팩토링 계획서
+# Wireless Location Estimation Project Refactoring Plan
+# Date: 2025-07-02
+
+## 📋 리팩토링 목표 (Refactoring Goals)
+
+### 현재 문제점 분석
+1. **과도한 복잡성**: 너무 많은 부가기능과 복잡한 전처리 파이프라인
+2. **높은 결합도**: 데이터 처리, 모델, 학습이 강하게 결합되어 있음
+3. **분산된 기능**: 유사한 기능이 여러 파일에 중복 구현
+4. **복잡한 프로세스**: 학습/테스트 실행이 과도하게 복잡함
+5. **관리 어려움**: 실험 결과와 로그가 체계적으로 관리되지 않음
+
+### 목표 아키텍처
+✅ **단순화**: 핵심 기능에 집중, 불필요한 복잡성 제거  
+✅ **모듈화**: 데이터/모델/학습을 독립적 모듈로 분리  
+✅ **유연성**: 인코딩 방식과 모델 구조 변경이 다른 부분에 영향 없음  
+✅ **재현성**: 모든 실험이 명확하게 추적 가능  
+✅ **관리성**: 실험별 디렉토리 구조로 체계적 관리  
+
+## 🏗️ 새로운 아키텍처 설계
+
+### 핵심 워크플로우
+```
+1. 데이터 인코딩 → 2. 모델 학습 → 3. 모델 활용/테스트
+     ↓              ↓             ↓
+[encoded/]     [checkpoints/]  [outputs/]
+```
+
+### 주요 원칙
+- **설정 기반**: 모든 변경사항은 config 파일로 제어
+- **인터페이스 분리**: Encoder, Model, Trainer는 독립적 인터페이스
+- **실험 관리**: experiments/<실험이름>/ 구조로 완전 분리
+- **재사용성**: 스크립트는 고정, 설정만 변경으로 다양한 실험 가능
+
+## 📁 새로운 디렉토리 구조
+
+```
+wireless_set_transformer/
+├── README.md                    # 프로젝트 개요 및 사용법
+├── requirements.txt             # 의존성 관리
+├── 
+├── configs/                     # 설정 파일들
+│   ├── default.yaml            # 기본 설정
+│   ├── wifi_hash.yaml          # WiFi 해시 인코딩 설정
+│   ├── wifi_embed.yaml         # WiFi 임베딩 설정
+│   └── models/                 # 모델별 설정
+│       ├── set_transformer.yaml
+│       └── deepset.yaml
+│
+├── data/                        # 데이터 처리 모듈
+│   ├── __init__.py
+│   ├── base.py                 # 추상 클래스 정의
+│   ├── db_reader.py            # DB 연결 및 쿼리
+│   └── encoders/               # 인코더 모듈
+│       ├── __init__.py
+│       ├── base.py             # BaseEncoder 추상 클래스
+│       ├── wifi_hash.py        # MAC 주소 해시 인코딩
+│       ├── wifi_embed.py       # MAC 주소 임베딩
+│       └── rssi_only.py        # RSSI만 사용
+│
+├── models/                      # 모델 정의
+│   ├── __init__.py
+│   ├── base.py                 # BaseModel 추상 클래스
+│   ├── set_transformer.py     # SetTransformer 구현
+│   ├── deepset.py             # DeepSet 기본 모델
+│   └── losses.py              # 손실 함수들
+│
+├── training/                    # 학습 관련 모듈
+│   ├── __init__.py
+│   ├── trainer.py             # 범용 Trainer 클래스
+│   ├── metrics.py             # 평가 지표
+│   └── utils.py               # 학습 유틸리티
+│
+├── scripts/                     # 실행 스크립트
+│   ├── encode_data.py         # 데이터 인코딩 스크립트
+│   ├── train_model.py         # 모델 학습 스크립트
+│   ├── run_inference.py       # 추론 실행 스크립트
+│   └── evaluate_model.py      # 모델 평가 스크립트
+│
+├── utils/                       # 공통 유틸리티
+│   ├── __init__.py
+│   ├── config.py              # 설정 로더
+│   ├── logging.py             # 로깅 설정
+│   └── io.py                  # 파일 입출력
+│
+└── experiments/                 # 실험 결과 저장소
+    └── exp001_wifi_hash_20250702/  # 실험별 디렉토리
+        ├── config.yaml         # 사용된 설정 복사본
+        ├── encoded/            # 인코딩된 데이터
+        │   ├── train_data.npy
+        │   └── test_data.npy
+        ├── checkpoints/        # 모델 체크포인트
+        │   ├── best_model.pt
+        │   └── epoch_10.pt
+        ├── logs/               # 학습 로그
+        │   ├── training.log
+        │   └── tensorboard/
+        └── outputs/            # 추론 결과
+            ├── predictions.csv
+            └── evaluation_report.json
+```
+
+## 🔧 핵심 구성요소 설계
+
+### 1. 데이터 인코딩 파이프라인
+
+#### BaseEncoder (추상 클래스)
+```python
+class BaseEncoder:
+    def encode(self, raw_data) -> np.ndarray:
+        """원시 데이터를 feature로 변환"""
+        pass
+    
+    def get_feature_dim(self) -> int:
+        """feature 차원 반환"""
+        pass
+```
+
+#### 구체적 인코더들
+- **WiFiHashEncoder**: MAC 주소를 해시로 변환
+- **WiFiEmbedEncoder**: MAC 주소를 학습 가능한 임베딩으로 변환  
+- **RSSIOnlyEncoder**: RSSI 값만 사용
+
+### 2. 모델 아키텍처
+
+#### BaseModel (추상 클래스)
+```python
+class BaseModel(nn.Module):
+    def forward(self, features) -> torch.Tensor:
+        """순전파"""
+        pass
+    
+    def get_config(self) -> dict:
+        """모델 설정 반환"""
+        pass
+```
+
+#### SetTransformer 모델
+- 기존 juho-lee/set_transformer 참조 구조 사용
+- 무선 신호 데이터에 특화된 어댑테이션
+
+### 3. 통합 Trainer
+
+#### 범용 학습 클래스
+```python
+class UniversalTrainer:
+    def __init__(self, model, encoder, config):
+        """모델과 인코더를 받아 학습 가능한 trainer 생성"""
+        pass
+    
+    def train(self, train_data, val_data):
+        """학습 실행"""
+        pass
+    
+    def evaluate(self, test_data):
+        """평가 실행"""
+        pass
+```
+
+## 📝 실행 스크립트 설계
+
+### 1. encode_data.py
+```bash
+python scripts/encode_data.py \
+    --config configs/wifi_hash.yaml \
+    --output experiments/exp001/encoded/
+```
+- DB에서 원시 데이터 읽기
+- 설정된 encoder로 feature 변환
+- encoded/ 디렉토리에 저장
+
+### 2. train_model.py  
+```bash
+python scripts/train_model.py \
+    --config configs/wifi_hash.yaml \
+    --experiment exp001_wifi_hash \
+    --encoded_data experiments/exp001/encoded/
+```
+- 인코딩된 데이터 로드
+- 설정된 모델로 학습
+- checkpoints/, logs/ 저장
+
+### 3. run_inference.py
+```bash
+python scripts/run_inference.py \
+    --model experiments/exp001/checkpoints/best_model.pt \
+    --test_data experiments/exp001/encoded/test_data.npy \
+    --output experiments/exp001/outputs/
+```
+- 저장된 모델로 추론
+- 결과를 outputs/ 저장
+
+## ⚙️ 설정 파일 구조
+
+### configs/wifi_hash.yaml 예시
+```yaml
+experiment:
+  name: "wifi_hash_baseline"
+  description: "MAC 주소 해시 기반 위치 추정"
+
+data:
+  encoder:
+    type: "WiFiHashEncoder"
+    params:
+      hash_dim: 128
+      rssi_normalize: true
+  
+  db:
+    host: "s2024.soxcorp.co.kr"
+    port: 33306
+    database: "collectdata"
+    
+model:
+  type: "SetTransformer"
+  params:
+    hidden_dim: 256
+    num_heads: 8
+    num_inds: 32
+    dropout: 0.1
+
+training:
+  batch_size: 128
+  epochs: 50
+  lr: 1e-3
+  weight_decay: 1e-5
+  
+output:
+  save_every: 10  # 10 에포크마다 저장
+  early_stopping: 20
+```
+
+## 🔄 유연성 구현 방안
+
+### 1. Encoder 교체
+```yaml
+# configs/wifi_embed.yaml
+data:
+  encoder:
+    type: "WiFiEmbedEncoder"  # 단순히 타입만 변경
+    params:
+      embed_dim: 64
+```
+→ 학습/추론 스크립트는 동일하게 사용
+
+### 2. Model 교체  
+```yaml
+# configs/deepset_experiment.yaml
+model:
+  type: "DeepSet"  # 모델만 변경
+  params:
+    hidden_dim: 128
+```
+→ 데이터 인코딩과 무관하게 모델만 교체
+
+### 3. 실험 관리
+```bash
+# 실험 1: WiFi 해시 + SetTransformer
+python scripts/train_model.py --config configs/wifi_hash.yaml --experiment exp001
+
+# 실험 2: WiFi 임베딩 + SetTransformer  
+python scripts/train_model.py --config configs/wifi_embed.yaml --experiment exp002
+
+# 실험 3: WiFi 해시 + DeepSet
+python scripts/train_model.py --config configs/deepset.yaml --experiment exp003
+```
+
+## 📊 실험 추적 시스템
+
+### 자동 실험 로깅
+- 모든 config는 실험 디렉토리에 복사 저장
+- Git commit hash 자동 기록
+- 하이퍼파라미터 및 성능 지표 JSON 저장
+- TensorBoard 로그 자동 생성
+
+### 실험 비교 도구
+```bash
+# 실험 결과 비교
+python utils/compare_experiments.py exp001 exp002 exp003
+```
+
+## 🚀 리팩토링 실행 계획
+
+### Phase 1: 기반 구조 구축 (1-2일)
+1. 새로운 디렉토리 구조 생성
+2. BaseEncoder, BaseModel 추상 클래스 구현  
+3. 설정 시스템 구축
+4. 기본 유틸리티 함수들 이동
+
+### Phase 2: 데이터 파이프라인 (2-3일)
+1. DB 리더 단순화 및 이동
+2. 기존 인코더들을 새 구조로 이동
+3. encode_data.py 스크립트 구현
+4. 인코딩 테스트 및 검증
+
+### Phase 3: 모델 및 학습 (2-3일)  
+1. SetTransformer 모델을 새 구조로 이동
+2. UniversalTrainer 구현
+3. train_model.py 스크립트 구현
+4. 학습 테스트 및 검증
+
+### Phase 4: 추론 및 평가 (1-2일)
+1. run_inference.py 구현
+2. 평가 지표 시스템 구축
+3. 실험 비교 도구 구현
+
+### Phase 5: 마이그레이션 및 정리 (1일)
+1. 기존 기능 검증
+2. 사용하지 않는 파일 정리
+3. 문서화 업데이트
+
+## 🎯 기대 효과
+
+### 개발 효율성
+- **빠른 실험**: 설정 파일만 수정으로 새 실험 가능
+- **재현성**: 모든 실험이 완전히 재현 가능
+- **디버깅**: 각 단계별 출력으로 문제점 빠른 파악
+
+### 유지보수성  
+- **모듈화**: 각 구성요소 독립적 수정 가능
+- **확장성**: 새로운 인코더/모델 쉽게 추가 가능
+- **가독성**: 명확한 구조로 코드 이해 용이
+
+### 실험 관리
+- **체계적**: experiments/ 구조로 모든 결과 정리
+- **비교 가능**: 동일한 형식으로 실험 결과 저장
+- **추적 가능**: 설정부터 결과까지 완전한 기록
+
+## 📋 TODO 체크리스트
+
+### Phase 1: 기반 구조
+- [ ] 새 디렉토리 구조 생성
+- [ ] BaseEncoder 추상 클래스 구현
+- [ ] BaseModel 추상 클래스 구현
+- [ ] 설정 로더 시스템 구현
+- [ ] 기본 유틸리티 함수들
+
+### Phase 2: 데이터 파이프라인  
+- [ ] DB 리더 리팩토링
+- [ ] WiFiHashEncoder 구현
+- [ ] WiFiEmbedEncoder 구현
+- [ ] encode_data.py 스크립트
+- [ ] 인코딩 검증 테스트
+
+### Phase 3: 모델 및 학습
+- [ ] SetTransformer 리팩토링
+- [ ] UniversalTrainer 구현
+- [ ] train_model.py 스크립트
+- [ ] 학습 검증 테스트
+
+### Phase 4: 추론 및 평가
+- [ ] run_inference.py 구현
+- [ ] evaluate_model.py 구현
+- [ ] 실험 비교 도구
+- [ ] 결과 시각화 도구
+
+### Phase 5: 마이그레이션
+- [ ] 기존 기능 검증
+- [ ] 레거시 코드 정리
+- [ ] 문서 업데이트
+- [ ] 사용 예제 작성
+
+---
+
+이 리팩토링을 통해 현재의 복잡하고 결합도 높은 구조를 단순하고 유연한 모듈형 아키텍처로 전환하여, 효율적인 실험과 유지보수가 가능한 시스템을 구축할 예정입니다.
+
+## 🧩 **세부 설계 및 구현 가이드**
+
+### 1. **데이터 입력/출력 명세**
+- **입력(raw):**
+  - wmac: WiFi MAC 주소 리스트 (예: '00:40:5a:af:bc:4a,...')
+  - wrssi: RSSI 리스트 (예: '-94.0,-85.0,...')
+  - Ipci: LTE PCI 리스트 (예: '260,430')
+  - Icelltype: LTE Cell Type 리스트 (예: '0,2')
+  - (추가: 필요시 ble, lte 등도 확장 가능)
+- **출력(label):**
+  - 위경도(latitude, longitude) → 그리드셀 id (xId, yId)
+  - 예: xId=12345, yId=67890
+
+#### **데이터 예시**
+| wmac | wrssi | Ipci | Icelltype | latitude | longitude |
+|------|-------|------|-----------|----------|-----------|
+| 00:40:5a:af:bc:4a,00:40:5a:b7:5c:c3 | -94.0,-85.0 | 260,430 | 0,2 | 37.566629 | 126.998153 |
+
+---
+
+### 2. **인코더 설계**
+- **WiFi MAC 인코딩**
+  - 해시 인코딩: 각 MAC을 고정차원 해시벡터로 변환 (예: 128차원)
+  - 임베딩 인코딩: MAC별 임베딩 벡터(학습가능, 예: 64차원)
+  - one-hot: MAC pool이 작을 때만 사용
+  - 패딩/마스킹: 샘플마다 MAC 개수 다를 때 0-padding, mask 적용
+- **wrssi 인코딩**
+  - 실수값, 정규화/클리핑(-100~0dBm 등)
+  - MAC 순서와 wrssi 순서 일치 보장
+- **LTE 정보 인코딩 (Ipci, Icelltype)**
+  - 카테고리 인코딩(임베딩/one-hot)
+  - LTE 정보 없는 샘플은 0-padding
+- **최종 feature vector**
+  - [MAC 임베딩/해시, wrssi, LTE 임베딩] concat
+  - shape: (max_set_size, feature_dim)
+
+#### **인코더 예시**
+```python
+# MAC 해시 인코딩 예시
+mac_hash = hash(mac) % hash_dim
+# wrssi 정규화 예시
+wrssi_norm = (wrssi + 100) / 100
+```
+
+---
+
+### 3. **그리드셀 변환 공식 및 함수**
+- **공식:**
+  - ORG_MIN_X = 124.54117
+  - ORG_MIN_Y = 32.928463
+  - OFFSET_5M_X = 0.0000555
+  - OFFSET_5M_Y = 0.0000460
+  - LEVEL = 5  # 25m 셀
+- **함수 예시:**
+```python
+def latlon_to_gridcell(lon, lat, level=5):
+    xId = int((lon - ORG_MIN_X) / (OFFSET_5M_X * level)) + 1
+    yId = int((lat - ORG_MIN_Y) / (OFFSET_5M_Y * level)) + 1
+    return xId, yId
+```
+- **주의:**
+  - 위경도 값이 범위 밖이면 예외처리
+  - level(셀 크기) 변경시 전체 데이터/모델 일관성 유지
+
+---
+
+### 4. **모델 설계**
+- **입력:** (batch, set_size, feature_dim) feature vector
+- **구조:** SetTransformer 등 permutation-invariant 구조
+- **출력:**
+  - (xId, yId) 회귀 (셀 개수 많을 때)
+  - 또는 단일 셀 id 분류 (셀 개수 적을 때)
+- **손실함수:**
+  - 회귀: MSE, MAE 등
+  - 분류: CrossEntropy 등
+- **추가:**
+  - 입력 feature shape 일관성(패딩/마스킹)
+  - 하이퍼파라미터(config에서만 제어)
+  - torch 모델 저장/불러오기 일관성
+
+---
+
+### 5. **실험 관리/평가/비교/시각화**
+- **실험별 디렉토리 자동 생성, config/log/result 저장**
+- **평가 지표:**
+  - 셀 id 정확도, 평균 거리 오차 등
+- **실험 비교/시각화 도구:**
+  - 여러 실험 결과 비교, 오차 분포 시각화 등
+- **reproducibility:**
+  - 시드 고정, config 백업, git hash 기록
+
+---
+
+### 6. **각 단계별 주의점**
+- **데이터 일관성:**
+  - feature vector shape/타입, MAC-wrssi 순서 일치
+  - 누락/이상치 robust 처리
+- **입출력 경로/설정:**
+  - 모든 경로/하이퍼파라미터는 config에서만 제어
+- **실험 관리:**
+  - 실험별 결과/로그/설정 자동 저장, reproducibility 확보
+- **확장성:**
+  - 인코더/모델 추가시 BaseEncoder/BaseModel 상속 구조로 통일
+- **테스트/문서화:**
+  - 각 모듈별 단위 테스트, README/사용 예제/문서화 충실
+
+---

@@ -1,0 +1,48 @@
+# WiFi Multi-Field Set Transformer Configuration
+# WiFi 기반 위치 추정을 위한 Set Transformer 설정
+
+data:
+  encoder:
+    type: "WiFiMultiFieldEncoder"
+    params:
+      max_mac_count: 10
+      max_ipcikey_count: 5
+      max_icellid_count: 3
+      mac_encoding: "bytes"  # bytes, hash, int64 중 선택
+
+model:
+  type: "SetTransformer"
+  task: "regression"  # regression, classification
+  output_dim: 2  # xId, yId for regression
+  params:
+    num_heads: 4
+    dim_hidden: 128
+    num_inds: 32
+    ln: true
+    num_outputs: 1
+
+training:
+  epochs: 100
+  batch_size: 64
+  shuffle: true
+  num_workers: 0
+  optimizer:
+    type: "Adam"
+    lr: 0.001
+    weight_decay: 0.0001
+  scheduler:
+    type: "StepLR"
+    step_size: 30
+    gamma: 0.5
+  loss: "MSE"  # MSE for regression, CrossEntropy for classification
+  early_stopping:
+    patience: 10
+    min_delta: 0.001
+  validation_split: 0.2
+
+output:
+  checkpoint_dir: "checkpoints"
+  log_dir: "logs"
+  save_frequency: 10  # every N epochs
+  save_best_only: true
+  max_checkpoints: 5  # keep only N best checkpoints 

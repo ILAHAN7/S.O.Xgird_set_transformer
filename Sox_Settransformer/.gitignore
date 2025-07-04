@@ -1,0 +1,4 @@
+# DB 접속 정보 등 민감 정보가 포함된 config 파일은 git에 올리지 않음
+configs/*.yaml
+# 단, 예시 파일은 커밋 허용
+!configs/*example*.yaml 

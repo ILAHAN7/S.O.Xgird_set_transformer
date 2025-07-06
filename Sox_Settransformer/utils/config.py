@@ -44,7 +44,7 @@ def validate_config(config: Dict[str, Any]) -> List[str]:
     
     # Model 섹션 검증
     model = config['model']
-    required_model_fields = ['name', 'task', 'input_dim', 'output_dim']
+    required_model_fields = ['name', 'task', 'output_dim']
     for field in required_model_fields:
         if field not in model:
             errors.append(f"Missing required model field: {field}")
@@ -162,7 +162,7 @@ def create_default_config() -> Dict[str, Any]:
         'model': {
             'name': 'set_transformer',
             'task': 'regression',
-            'input_dim': 7,
+            # 'input_dim': 7,  # (자동 추론됨, 명시 불필요)
             'output_dim': 2,
             'params': {
                 'hidden_dim': 256,

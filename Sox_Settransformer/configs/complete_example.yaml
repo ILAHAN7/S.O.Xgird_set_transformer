@@ -1,0 +1,56 @@
+# Complete WiFi Multi-Field Set Transformer Configuration
+# 실제 실험에 사용할 수 있는 완전한 설정 예시
+
+data:
+  db:
+    host: localhost
+    port: 3306
+    user: your_username
+    password: your_password
+    database: wifi_database
+    table: wifi_signals
+    id_col: id
+    chunk_size: 10000
+  encoder:
+    type: WiFiMultiFieldEncoder
+    params:
+      max_mac_count: 32
+      max_ipcikey_count: 8
+      max_icellid_count: 4
+      mac_encoding: bytes
+  gridcell:
+    level: 5  # 25m 셀
+  x_max: 1000
+
+model:
+  name: set_transformer
+  task: regression  # regression 또는 classification
+  output_dim: 2  # 회귀: 2, 분류: 클래스 수
+  params:
+    hidden_dim: 256
+    num_heads: 4
+    num_inds: 32
+    num_enc_layers: 2
+    num_dec_layers: 2
+    dropout: 0.1
+    ln: true
+
+training:
+  batch_size: 128
+  epochs: 50
+  optimizer: adam
+  lr: 0.001
+  weight_decay: 0.0001
+  seed: 42
+  early_stopping: 10
+  save_all_epochs: true
+  save_every: 10
+
+output:
+  save_every: 10
+  save_best_only: false
+  output_format: ['csv', 'json']
+
+experiment:
+  name: wifi_experiment_001
+  output_dir: experiments/wifi_experiment_001/ 

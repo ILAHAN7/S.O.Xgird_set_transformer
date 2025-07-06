@@ -226,3 +226,48 @@ def save_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Optimizer,
     except Exception as e:
         logger.error(f"Failed to save checkpoint to {checkpoint_path}: {e}")
         raise 
+
+def append_to_h5(data: np.ndarray, file_path: str, dataset_name: str = 'data', 
+                compression: str = 'gzip', compression_opts: int = 9) -> None:
+    """
+    numpy 배열을 HDF5 파일에 추가 저장 (append 모드)
+    
+    Args:
+        data: 저장할 numpy 배열
+        file_path: 저장할 HDF5 파일 경로
+        dataset_name: 저장할 데이터셋 이름
+        compression: 압축 방식 ('gzip', 'lzf', None)
+        compression_opts: 압축 옵션 (gzip의 경우 0-9)
+    """
+    try:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        # 파일이 존재하면 append, 없으면 새로 생성
+        if os.path.exists(file_path):
+            with h5py.File(file_path, 'a') as f:
+                if dataset_name in f:
+                    # 기존 데이터셋이 있으면 크기 확장
+                    dataset = f[dataset_name]
+                    current_size = dataset.shape[0]
+                    new_size = current_size + data.shape[0]
+                    
+                    # 데이터셋 크기 확장
+                    dataset.resize((new_size,) + dataset.shape[1:])
+                    dataset[current_size:new_size] = data
+                else:
+                    # 새 데이터셋 생성
+                    f.create_dataset(dataset_name, data=data,
+                                   compression=compression,
+                                   compression_opts=compression_opts)
+        else:
+            # 새 파일 생성
+            with h5py.File(file_path, 'w') as f:
+                f.create_dataset(dataset_name, data=data,
+                               compression=compression,
+                               compression_opts=compression_opts)
+        
+        logger.info(f"Appended {data.shape} to {file_path}")
+        
+    except Exception as e:
+        logger.error(f"Failed to append to {file_path}: {e}")
+        raise 

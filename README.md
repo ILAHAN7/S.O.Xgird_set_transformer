@@ -204,6 +204,9 @@ class UniversalTrainer:
 python scripts/encode_data.py --config configs/wifi_multi_field_example.yaml --output experiments/exp001/encoded/
 python scripts/{인코더 스크립트명/endcoder python file name} --config configs/{사용할 설정파일명/the name of config file to use} --output {결과 출력 경로/directory to output}
 
+인코더를 추가하면 항상 _init-.py에 등록 해야함 / If you add addtitional encoders, you must update it to the _init_.py
+
+
 # 2. 파트 파일 병합
 python scripts/merge_hdf5_parts.py --input_dir experiments/exp001/encoded/ --output_dir experiments/exp001/merged/
 python scripts/merge_hdf5_parts.py --input_dir {입력 파일 경로/directory to pull input} --output_dir {결과 출력 경로/directory to output}

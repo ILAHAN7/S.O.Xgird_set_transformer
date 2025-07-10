@@ -202,11 +202,13 @@ class UniversalTrainer:
 ```bash
 # 1. 데이터 인코딩 (병렬 처리)
 python scripts/encode_data.py --config configs/wifi_multi_field_example.yaml --output experiments/exp001/encoded/
+python scripts/{인코더 스크립트명/endcoder python file name} --config configs/{사용할 설정파일명/the name of config file to use} --output {결과 출력 경로/directory to output}
 
 # 2. 파트 파일 병합
 python scripts/merge_hdf5_parts.py --input_dir experiments/exp001/encoded/ --output_dir experiments/exp001/merged/
-```
-- **Step 1:** DB에서 청크 단위로 데이터를 읽어 병렬 인코딩하여 part-*.h5 파일로 저장  
+python scripts/merge_hdf5_parts.py --input_dir {입력 파일 경로/directory to pull input} --output_dir {결과 출력 경로/directory to output}
+- **Step 1:** DB에서 청크 단위로 데이터를 읽어 병렬 인코딩하여 part-*.h5 파일로 저장 
+
   Read data from DB in chunks, parallel encode, and save as part-*.h5 files
 - **Step 2:** part 파일들을 하나의 features.h5, labels.h5로 병합  
   Merge part files into single features.h5 and labels.h5

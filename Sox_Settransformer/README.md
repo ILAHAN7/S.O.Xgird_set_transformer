@@ -31,7 +31,8 @@ Reproducibility: Config-driven experiments ensuring complete reproducibility
 Scalability: Modular structure for easy addition of new encoders/models
 Robustness: Error handling and logging system
 아키텍처 / Architecture
-디렉토리 구조 / Directory Structure
+
+```디렉토리 구조 / Directory Structure
 Sox_Settransformer/
 ├── configs/                # 실험/모델/데이터 설정 YAML
 │   └── wifi_multi_field_example.yaml
@@ -64,6 +65,9 @@ Sox_Settransformer/
 ├── experiments/            # 실험별 결과/체크포인트/로그
 ├── requirements.txt        # 의존성 패키지
 └── README.md
+```
+
+
 데이터 플로우 / Data Flow
 1. Database → Chunk Loading
    ↓
